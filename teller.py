@@ -1,4 +1,3 @@
-import math
 from model_objects import Discount, Offer, SpecialOfferType
 from receipt import Receipt
 from strategies import OfferStrategy, ThreeForTwoStrategy, TwoForAmountStrategy, FiveForAmountStrategy, TenPercentDiscountStrategy 
