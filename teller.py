@@ -1,6 +1,7 @@
 import math
 from model_objects import Discount, Offer, SpecialOfferType
 from receipt import Receipt
+from strategies import OfferStrategy, ThreeForTwoStrategy, TwoForAmountStrategy, FiveForAmountStrategy, TenPercentDiscountStrategy 
 
 
 class Teller:
@@ -8,9 +9,28 @@ class Teller:
     def __init__(self, catalog):
         self.catalog = catalog
         self.offers = {}
+        self.strategies = {
+            SpecialOfferType.THREE_FOR_TWO: ThreeForTwoStrategy(),
+            SpecialOfferType.TWO_FOR_AMOUNT: TwoForAmountStrategy(),
+            SpecialOfferType.FIVE_FOR_AMOUNT: FiveForAmountStrategy(),
+            SpecialOfferType.TEN_PERCENT_DISCOUNT: TenPercentDiscountStrategy()
+        }
+
 
     def add_special_offer(self, offer_type, product, argument):
         self.offers[product] = Offer(offer_type, product, argument)
+
+
+    def register_strategy(self, offer_type: SpecialOfferType, strategy: OfferStrategy):
+        '''Allows to create new stretegies withous changing self.strategies'''
+        self.strategies[offer_type] = strategy
+
+
+    def handle_special_offers(self, offer, quantity, unit_price, p):
+        strategy = self.strategies.get(offer.offer_type)
+        if strategy:
+            return strategy.calculate_discount(offer, quantity, unit_price, p)
+        return None
 
     def checks_out_articles_from(self, the_cart):
         receipt = Receipt()
