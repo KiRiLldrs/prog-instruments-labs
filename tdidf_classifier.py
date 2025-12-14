@@ -53,8 +53,8 @@ class TFIDFClassifier(BaseTextClassifier):
         )
         self.logger.info(f"Разбивка: train={len(train_df)}, val={len(val_df)}")
 
-        X_train = self.vectorizer.fit_transform(train_df["text"])   #обучает валидатор только на train 
-        X_val = self.vectorizer.transform(val_df["text"])           #применяет ту же логику к val
+        X_train = self.vectorizer.fit_transform(train_df["text"]) 
+        X_val = self.vectorizer.transform(val_df["text"])
 
         y_train = train_df["label_id"]
         y_val = val_df["label_id"]
@@ -79,6 +79,7 @@ class TFIDFClassifier(BaseTextClassifier):
 
     def predict(self, text: str)->str:
         if not self.is_trained:
+            self.logger.error("Попытка предсказать на необученной модели")
             raise RuntimeError("Модель не обучена. Вызовите .fit() сначала.")
 
         X = self.vectorizer.transform([text])
@@ -99,42 +100,51 @@ class TFIDFClassifier(BaseTextClassifier):
             'is_trained': self.is_trained,
             'metrics': self.metrics
         }
-        with open(os.path.join(output_dir, "meta.pkl"), "wb") as f:
-            pickle.dump(meta, f)
+        
+        try:
+            with open(os.path.join(output_dir, "meta.pkl"), "wb") as f:
+                pickle.dump(meta, f)
 
-        # Сохраняем TF-IDF векторизатор в файл (чтобы потом обрабатывать новые тексты так же)
-        with open(os.path.join(output_dir, "vectorizer.pkl"), "wb") as f:
-            pickle.dump(self.vectorizer, f)
+            with open(os.path.join(output_dir, "vectorizer.pkl"), "wb") as f:
+                pickle.dump(self.vectorizer, f)
 
-        # Сохраняем обученный классификатор
-        with open(os.path.join(output_dir, "classifier.pkl"), "wb") as f:
-            pickle.dump(self.classifier, f)
+            with open(os.path.join(output_dir, "classifier.pkl"), "wb") as f:
+                pickle.dump(self.classifier, f)
 
-        # Сохраняем словари перевода между названиями категорий и числами
-        with open(os.path.join(output_dir, "label_mappings.pkl"), "wb") as f:
-            pickle.dump({"label2id": self.label2id, "id2label": self.id2label}, f)
+            with open(os.path.join(output_dir, "label_mappings.pkl"), "wb") as f:
+                pickle.dump({"label2id": self.label2id, "id2label": self.id2label}, f)
+        except Exception as e:
+            self.logger.exception("Не удалось сохранить модель")
+            raise
     
     
     @classmethod
     def load(cls, path):
-        with open(Path(path,"meta.pkl"), "rb") as f:
-            meta = pickle.load(f)
+        try:
+            with open(Path(path,"meta.pkl"), "rb") as f:
+                meta = pickle.load(f)
 
-        obj = cls()
-        obj.is_trained = meta["is_trained"]
-        obj.metrics = meta["metrics"]
+            obj = cls()
+            obj.is_trained = meta["is_trained"]
+            obj.metrics = meta["metrics"]
 
-        with open(Path(path, "vectorizer.pkl"), "rb") as f:
-            obj.vectorizer = pickle.load(f)
+            with open(Path(path, "vectorizer.pkl"), "rb") as f:
+                obj.vectorizer = pickle.load(f)
 
-        with open(Path(path, "classifier.pkl"), "rb") as f:
-            obj.classifier = pickle.load(f)
+            with open(Path(path, "classifier.pkl"), "rb") as f:
+                obj.classifier = pickle.load(f)
 
-        with open(Path(path, "label_mappings.pkl"), "rb") as f:
-            mappings = pickle.load(f)
-            obj.id2label = mappings["id2label"]
+            with open(Path(path, "label_mappings.pkl"), "rb") as f:
+                mappings = pickle.load(f)
+                obj.id2label = mappings["id2label"]
 
-        print("Модель загружена")
+            obj.logger.info("Модель загружена")
+        except FileNotFoundError as e:
+            obj.logger.error("Файл не найден")
+            raise
+        except Exception as e:
+            obj.logger.exception("Ошибка при загрузке модели")
+            raise
 
         return obj
 
