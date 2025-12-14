@@ -12,6 +12,8 @@ from base import BaseTextClassifier
 
 class TFIDFClassifier(BaseTextClassifier):
     def __init__(self, max_features=10000, ngram_range=(1,2)):
+        super().__init__()
+
         self.vectorizer = TfidfVectorizer(
             max_features = max_features,
             ngram_range = ngram_range,
@@ -26,20 +28,12 @@ class TFIDFClassifier(BaseTextClassifier):
 
 
     def fit(self, df=None, csv_path=None, test_size=0.2):
-        """
-        Trains the model
-        
-        :param self: Description
-        :param df: Description
-        :param csv_path: Description
-        :param test_size: Description
-        """
         if df is None and csv_path is None:
             raise ValueError("Укажите df или csv_path")
         if df is None:
             df = pd.read_csv(csv_path)
 
-        print(f'Загружено {len(df)} исходных примеров')
+        self.logger.info(f"Загружено {len(df)} исходных строк")
 
         if 'text' not in df.columns or 'label' not in df.columns:
             raise ValueError(f"Файл должен содержать колонки 'text' и 'label'")
@@ -48,8 +42,8 @@ class TFIDFClassifier(BaseTextClassifier):
         self.id2label = {idx: label for label, idx in self.label2id.items()}
         df["label_id"] = df["label"].map(self.label2id)
 
-        print("Распределение категорий:")
-        print(df["label"].value_counts())
+        value_counts = df["label"].value_counts()
+        print(f"Распределение меток: {value_counts}")
 
         train_df, val_df = train_test_split(
             df,
@@ -57,6 +51,7 @@ class TFIDFClassifier(BaseTextClassifier):
             stratify=df["label"],
             random_state=42
         )
+        self.logger.info(f"Разбивка: train={len(train_df)}, val={len(val_df)}")
 
         X_train = self.vectorizer.fit_transform(train_df["text"])   #обучает валидатор только на train 
         X_val = self.vectorizer.transform(val_df["text"])           #применяет ту же логику к val
@@ -64,15 +59,16 @@ class TFIDFClassifier(BaseTextClassifier):
         y_train = train_df["label_id"]
         y_val = val_df["label_id"]
 
+        self.logger.info("Начинается обучение классификатора...")
         self.classifier.fit(X_train, y_train)
 
         y_pred = self.classifier.predict(X_val)
 
         accuracy = accuracy_score(y_val, y_pred)
-        print(f"Точность на валидации: {accuracy:.4f}")
+        self.logger.info(f"Точность на валидации: {accuracy:.4f}")
 
-        print("\nОтчёт по классам:")
-        print(classification_report(y_val, y_pred, target_names=[self.id2label[i] for i in sorted(self.id2label)]))
+        self.logger.info(f"Отчёт по классам:\
+                         \n{classification_report(y_val, y_pred, target_names=[self.id2label[i] for i in sorted(self.id2label)])}")
 
         self.is_trained = True
         self.metrics = {
