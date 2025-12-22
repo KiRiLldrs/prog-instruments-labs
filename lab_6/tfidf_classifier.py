@@ -52,6 +52,12 @@ class TFIDFClassifier(BaseTextClassifier):
         df = df[df['subrubric'].isin(valid_classes)].reset_index(drop=True)
         self.logger.info(f"Оставлено {len(df)} строк после фильтрации классов с <{min_class_size} примеров")
 
+        if len(df) == 0:
+            raise ValueError(
+                f"После фильтрации (min_class_size={min_class_size}) не осталось данных. "
+                "Невозможно обучить модель без примеров."
+            )
+
         if 'text' not in df.columns or 'subrubric' not in df.columns:
             raise ValueError(f"Файл должен содержать колонки 'text' и 'subrubric'")
         
@@ -64,9 +70,32 @@ class TFIDFClassifier(BaseTextClassifier):
         value_counts = df["subrubric"].value_counts()
         self.logger.info(f"Распределение меток:\n{value_counts.to_string()}")
 
+        n_classes = len(self.label2id)
+
+        if isinstance(test_size, float):
+            n_test_est = int(len(df) * test_size)
+            if n_test_est < n_classes:
+                new_test_size = max(n_classes, 1) 
+                self.logger.warning(
+                    f"test_size={test_size}: {n_test_est} < {n_classes} классов. "
+                    f"Используем test_size={new_test_size} (абсолютное число)."
+                )
+                final_test_size = new_test_size
+            else:
+                final_test_size = test_size
+        else:
+            final_test_size = test_size
+            if final_test_size < n_classes:
+                raise ValueError(f"test_size={final_test_size} < {n_classes} классов: невозможно стратифицировать")
+            
+        if isinstance(final_test_size, int) and final_test_size >= len(df):
+            final_test_size = max(1, len(df) // 2)
+            self.logger.warning(f"test_size превышает размер данных: установлено {final_test_size}")
+
+
         train_df, val_df = train_test_split(
             df,
-            test_size=test_size,
+            test_size=final_test_size,
             stratify=df["subrubric"],
             random_state=42
         )
@@ -122,6 +151,12 @@ class TFIDFClassifier(BaseTextClassifier):
         if before != after:
             self.logger.warning(f"Удалено {before - after} строк: метки отсутствуют в обученной модели")
         df['subrubric_id'] = df['subrubric_id'].astype(int)
+
+        if len(df) == 0:
+            self.logger.warning("Нет строк с известными метками — предсказание невозможно.")
+            for handler in self.logger.handlers:
+                handler.flush()
+            return
 
         X = self.vectorizer.transform(df['text'])
         y_true = df['subrubric_id'].values

@@ -42,14 +42,25 @@ def test_df():
 
 
 def test_init_default_params():
+    """
+    Проверяет, что конструктор устанавливает параметры по умолчанию:
+    - max_features=10000,
+    - ngram_range=(1, 2),
+    - min_class_size=50,
+    - is_trained=False.
+    """
     clf = TFIDFClassifier()
     assert clf.vectorizer.max_features == 10000
     assert clf.vectorizer.ngram_range == (1, 2)
     assert clf.min_class_size == 50
-    assert clf.is_trained == False
+    assert clf.is_trained is False
 
 
 def test_fit_filters_small_classes(train_df):
+    """
+    Проверяет фильтрацию классов с числом примеров < min_class_size.
+    При min_class_size=3 в train_df остаются только 'Образование' и 'Недвижимость'.
+    """
     clf = TFIDFClassifier(min_class_size=3)
     clf.fit(df=train_df)
     assert len(clf.label2id) == 2
@@ -57,6 +68,11 @@ def test_fit_filters_small_classes(train_df):
 
 
 def test_save_and_load(train_df):
+    """
+    Проверяет корректность сохранения и загрузки:
+    - все ожидаемые файлы создаются,
+    - метаданные, словари и флаг is_trained сохраняются и восстанавливаются.
+    """
     clf = TFIDFClassifier(min_class_size=2)
     clf.fit(df=train_df)
 
@@ -71,13 +87,17 @@ def test_save_and_load(train_df):
 
         clf2 = TFIDFClassifier.load(tmpdir)
 
-        assert clf2.is_trained
+        assert clf2.is_trained is True
         assert clf2.metrics["n_classes"] == clf.metrics["n_classes"]
         assert clf2.label2id == clf.label2id
         assert clf2.id2label == clf.id2label
 
 
 def test_predict_after_load_consistency(train_df, test_df):
+    """
+    Проверяет, что предсказания не меняются после save/load:
+    модель ведёт себя одинаково до и после сериализации.
+    """
     clf = TFIDFClassifier(min_class_size=2)
     clf.fit(df=train_df)
 
@@ -93,6 +113,11 @@ def test_predict_after_load_consistency(train_df, test_df):
 
 
 def test_predict_filters_unseen_labels(train_df, caplog):
+    """
+    Проверяет, что predict():
+    - логирует предупреждение при наличии меток, отсутствующих в обученной модели,
+    - корректно отбрасывает такие строки.
+    """
     clf = TFIDFClassifier(min_class_size=1)
     clf.fit(df=train_df)
 
@@ -114,6 +139,11 @@ def test_predict_filters_unseen_labels(train_df, caplog):
 
 
 def test_evaluate_empty_dataset():
+    """
+    Проверяет устойчивость evaluate() к пустому входному файлу:
+    - не падает,
+    - возвращает accuracy=0.0 и n_samples=0.
+    """
     empty_df = pd.DataFrame({"text": [], "subrubric": []})
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
@@ -132,6 +162,10 @@ def test_evaluate_empty_dataset():
 
 
 def test_predict_raises_if_not_trained():
+    """
+    Проверяет, что predict() выбрасывает RuntimeError с понятным сообщением,
+    если модель не была обучена.
+    """
     clf = TFIDFClassifier()
     df = pd.DataFrame({"text": ["test"], "subrubric": ["test"]})
 
@@ -153,12 +187,23 @@ def test_predict_raises_if_not_trained():
     (6, 0),
 ])
 def test_fit_min_class_size_parametrized(train_df, min_size, expected_n_classes):
+    """
+    Проверяет фильтрацию классов при разных min_class_size.
+    При min_size=6: 0 классов - ожидаем ValueError.
+    """
     clf = TFIDFClassifier(min_class_size=min_size)
-    clf.fit(df=train_df)
-    assert len(clf.label2id) == expected_n_classes
+    if expected_n_classes == 0:
+        with pytest.raises(ValueError, match="не осталось данных"):
+            clf.fit(df=train_df)
+    else:
+        clf.fit(df=train_df)
+        assert len(clf.label2id) == expected_n_classes
 
 
 def test_label_mappings_consistency_after_load(train_df):
+    """
+    Проверяет, что после загрузки label2id и id2label остаются взаимно-обратными
+    """
     clf = TFIDFClassifier(min_class_size=2)
     clf.fit(df=train_df)
 

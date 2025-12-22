@@ -6,7 +6,7 @@ class BaseTextClassifier(ABC):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.setLevel(logging.INFO)
 
-        self.logger.propagate = False
+        self.logger.propagate = True
 
         if not self.logger.handlers:
             handler = logging.StreamHandler()
